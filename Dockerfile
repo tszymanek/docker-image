@@ -10,6 +10,10 @@ ENV LC_ALL     pl_PL.UTF-8
 
 ENV HOME /root
 
+RUN rm -f /etc/service/sshd/down
+# Regenerate SSH host keys. baseimage-docker does not contain any, so you
+# have to do that yourself. You may also comment out this instruction; the
+# init system will auto-generate one during boot.
 RUN /etc/my_init.d/00_regen_ssh_host_keys.sh
 
 # Use baseimage-docker's init system.
@@ -43,10 +47,11 @@ RUN awk '/bind_ip/{print "bind_ip = 0.0.0.0";next}1' /etc/mongod.conf > /tmp/mon
 RUN cat /tmp/mongod.conf > /etc/mongod.conf 
 
 # Create the MongoDB data directory
-RUN mkdir -p /data/db  \
+RUN mkdir -p /data/db \
 	&& chown -R mongodb:mongodb /data/db
 VOLUME /data/db
 
+# Create a runit entry for your app
 RUN mkdir 			/etc/service/mongo
 ADD build/mongo.sh	/etc/service/mongo/run
 RUN chown root		/etc/service/mongo/run
