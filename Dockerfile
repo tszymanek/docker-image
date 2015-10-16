@@ -23,10 +23,11 @@ CMD ["/sbin/my_init"]
 RUN DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update \
-	&& apt-get install -y vim curl wget build-essential python-software-properties git
+	&& apt-get install -y vim curl wget build-essential python-software-properties git nano
 
 #MongoDB Installation
 ENV MONGO_MAJOR 3.0
+ENV MONGO_VERSION 3.0.7
 
 #1. add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 RUN groupadd -r mongodb && useradd -r -g mongodb mongodb
@@ -36,15 +37,21 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 7F0CEB10
 RUN echo "deb http://repo.mongodb.org/apt/ubuntu "$(lsb_release -sc)"/mongodb-org/$MONGO_MAJOR multiverse" > /etc/apt/sources.list.d/mongodb-org.list
 
 # Update apt-get sources AND install MongoDB
-RUN  apt-get update \
-	&& apt-get install -y mongodb-org \
+RUN set -x \ 
+	&& apt-get update \
+	&& apt-get install -y \
+		mongodb-org=$MONGO_VERSION \
+		mongodb-org-server=$MONGO_VERSION \
+		mongodb-org-shell=$MONGO_VERSION \
+		mongodb-org-mongos=$MONGO_VERSION \
+		mongodb-org-tools=$MONGO_VERSION \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& rm -rf /var/lib/mongodb \
 	&& cp /etc/mongod.conf /etc/mongod.conf.orig
 
 # Bind ip to accept external connections
-RUN awk '/bind_ip/{print "bind_ip = 0.0.0.0";next}1' /etc/mongod.conf > /tmp/mongod.conf
-RUN cat /tmp/mongod.conf > /etc/mongod.conf 
+
+RUN sed -i -e "s/bindIp\:.*/bindIp\: 0\.0\.0\.0/" -e "s/dbPath\:.*/dbPath\: \/data\/db/" /etc/mongod.conf
 
 # Create the MongoDB data directory
 RUN mkdir -p /data/db \
@@ -54,16 +61,16 @@ VOLUME /data/db
 # Create a runit entry for your app
 RUN mkdir 			/etc/service/mongo
 ADD build/mongo.sh	/etc/service/mongo/run
-RUN chown root		/etc/service/mongo/run
+RUN chmod +x		/etc/service/mongo/run
 
 # Expose port 27017 from the container to the host
 EXPOSE 27017
 
 # Nginx-PHP Installation
-# RUN add-apt-repository -y ppa:ondrej/php5
-RUN add-apt-repository -y ppa:nginx/stable
-RUN apt-get update
-RUN apt-get install -y --force-yes php5-cli php5-fpm php5-curl php5-dev php-pear
+RUN add-apt-repository -y ppa:ondrej/php5 \
+	&& add-apt-repository -y ppa:nginx/stable \
+	&& apt-get update \
+	&& apt-get install -y --force-yes php5-cli php5-fpm php5-curl php5-dev php-pear
 
 RUN sed -i "s/;date.timezone =.*/date.timezone = \"Europe\/Warsaw\"/" /etc/php5/fpm/php.ini
 RUN sed -i "s/;date.timezone =.*/date.timezone = \"Europe\/Warsaw\"/" /etc/php5/cli/php.ini
@@ -75,12 +82,12 @@ RUN sed -i -e "s/;daemonize\s*=\s*yes/daemonize = no/g" /etc/php5/fpm/php-fpm.co
 RUN sed -i "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/" /etc/php5/fpm/php.ini
 
 # Install Xdebug
-RUN pecl install xdebug
-RUN echo "zend_extension=/usr/lib/php5/20121212/xdebug.so" > /etc/php5/fpm/conf.d/xdebug.ini
+# RUN pecl install xdebug
+# RUN echo "zend_extension=/usr/lib/php5/20121212/xdebug.so" > /etc/php5/fpm/conf.d/xdebug.ini
 
 # Install MongoDB driver
-RUN pecl install mongo
-RUN echo "extension=mongo.so" | tee /etc/php5/fpm/conf.d/mongo.ini
+RUN pecl install mongo \
+	&& echo "extension=mongo.so" | tee /etc/php5/fpm/conf.d/mongo.ini
 
 # Create a runit entry for your app
 RUN mkdir -p        /var/www

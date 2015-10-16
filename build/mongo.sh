@@ -6,4 +6,4 @@
 # If you omit that part, the command will be run as root.
 
 # Read more here: https://github.com/phusion/baseimage-docker#adding-additional-daemons
-exec /sbin/setuser mongodb /usr/bin/mongod --config /etc/mongod.conf
+exec /sbin/setuser mongodb mongod --config /etc/mongod.conf
